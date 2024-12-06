@@ -1,0 +1,291 @@
+<html><head><base href="." />
+<meta charset="UTF-8">
+<title>Motivational Timer</title>
+<style>
+body {
+    margin: 0;
+    background: linear-gradient(135deg, #000428, #004e92); /* Blue-black gradient */
+    color: #fff;
+    font-family: 'Arial', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    transition: background-color 0.5s, background-image 0.5s;
+}
+
+body.light-theme {
+    background: #fff;
+    color: #000;
+}
+
+body.black-theme {
+    background: #000;
+    color: #fff;
+}
+
+.sparkle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    animation: sparkle 1.5s linear infinite;
+    pointer-events: none;
+}
+
+body.light-theme .sparkle {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+@keyframes sparkle {
+    0% { transform: translateY(0) scale(0); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(-100px) scale(1); opacity: 0; }
+}
+
+.timer {
+    font-size: 8rem;
+    font-weight: bold;
+    margin: 20px;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.quote {
+    font-size: 1.5rem;
+    text-align: center;
+    margin: 20px;
+    max-width: 80%;
+    opacity: 0;
+    transition: opacity 2s; /* Slowed down fade transition */
+}
+
+.emoji {
+    font-size: 3rem;
+    margin: 10px;
+}
+
+.controls-container {
+    position: fixed;
+    bottom: -200px;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    transition: bottom 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+body.light-theme .controls-container {
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.controls-container.show {
+    bottom: 0;
+}
+
+.toggle-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+    background: #fff;
+    border: none;
+    border-radius: 5px;
+    transition: transform 0.2s;
+}
+
+body.light-theme button {
+    background: #333;
+    color: #fff;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+.goal-input {
+    margin: 10px;
+    padding: 10px;
+    border-radius: 5px;
+    width: 80%;
+    max-width: 300px;
+}
+
+.modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 10px;
+    color: #000;
+    display: none;
+    z-index: 1000;
+}
+</style>
+</head>
+<body>
+
+<div class="timer" id="timer">60:00</div>
+<div class="emoji" id="emoji">⏰</div>
+<div class="quote" id="quote"></div>
+
+<button class="toggle-controls" onclick="toggleControls()">⚙️ Settings</button>
+
+<div class="controls-container" id="controlsContainer">
+    <div class="controls">
+        <button onclick="pauseTimer()">⏯️ Pause</button>
+        <button onclick="restartTimer()">🔄 Restart</button>
+        <button onclick="setCustomTimer()">⏱️ Set Custom Time</button>
+        <button onclick="toggleTheme()">🎨 Toggle Theme</button>
+    </div>
+    <input type="text" class="goal-input" id="goalInput" placeholder="Enter your goal">
+    <button onclick="setGoal()">🎯 Set Goal</button>
+</div>
+
+<div class="modal" id="goalModal">
+    <h2>Goal Reminder! 🎉</h2>
+    <p id="goalText"></p>
+    <button onclick="closeModal()">Close</button>
+</div>
+
+<script>
+let timeLeft = 3600;
+let timerId = null;
+let isPaused = false;
+let currentGoal = '';
+let lastQuoteTime = 0;
+let lastEmojiTime = 0;
+
+const quotes = [
+    "जीवन में कभी हार नहीं मानना, हर मुश्किल का सामना करना।",
+    "सफलता की राह में रुकावटें आती हैं, लेकिन हिम्मत वाले आगे बढ़ते हैं।",
+    "हर दिन एक नई शुरुआत है, अपने सपनों को पूरा करने की।",
+    "मेहनत का फल मीठा होता है, बस राह पर चलते रहो।",
+    "Time is your most valuable asset - invest it wisely.",
+    "Every second is a chance to change your life.",
+    "Don't count the time, make the time count.",
+    "Your future is created by what you do today.",
+    "Time waits for no one. Act now!",
+    "Small progress is still progress."
+];
+
+const emojis = ["⏰", "💪", "🎯", "✨", "💫", "⭐", "🌟", "🔥", "💡"];
+
+function createSparkles() {
+    setInterval(() => {
+        const sparkle = document.createElement('div');
+        sparkle.className = 'sparkle';
+        sparkle.style.left = Math.random() * window.innerWidth + 'px';
+        document.body.appendChild(sparkle);
+        setTimeout(() => sparkle.remove(), 1500);
+    }, 50);
+}
+
+function updateTimer() {
+    if (!isPaused && timeLeft > 0) {
+        timeLeft--;
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('timer').textContent = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft === 0) {
+            showGoalModal();
+        }
+    }
+}
+
+function showQuote() {
+    const currentTime = Date.now();
+    if (currentTime - lastQuoteTime >= 30000) { // Change to show new quote every 30 seconds
+        const quoteElement = document.getElementById('quote');
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        quoteElement.style.opacity = '0';
+        
+        setTimeout(() => {
+            quoteElement.textContent = randomQuote;
+            quoteElement.style.opacity = '1';
+            updateEmoji(); // Change emoji with the quote
+        }, 2000);
+        
+        lastQuoteTime = currentTime;
+    }
+}
+
+function updateEmoji() {
+    const emojiElement = document.getElementById('emoji'); 
+    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+    emojiElement.textContent = randomEmoji;
+}
+
+function toggleControls() {
+    const container = document.getElementById('controlsContainer');
+    container.classList.toggle('show');
+}
+
+function toggleTheme() {
+    document.body.classList.toggle('light-theme');
+    document.body.classList.toggle('black-theme');
+}
+
+function pauseTimer() {
+    isPaused = !isPaused;
+}
+
+function restartTimer() {
+    timeLeft = 3600;
+    isPaused = false;
+}
+
+function setCustomTimer() {
+    const minutes = prompt("Enter time in minutes:");
+    if (minutes && !isNaN(minutes)) {
+        timeLeft = parseInt(minutes) * 60;
+        isPaused = false;
+    }
+}
+
+function setGoal() {
+    currentGoal = document.getElementById('goalInput').value;
+    alert("Goal set successfully! 🎯");
+}
+
+function showGoalModal() {
+    const modal = document.getElementById('goalModal');
+    document.getElementById('goalText').textContent = currentGoal;
+    modal.style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('goalModal').style.display = 'none';
+}
+
+// Initialize
+createSparkles();
+setInterval(updateTimer, 1000);
+setInterval(showQuote, 1000); // Check every second, but only show quote every 30 seconds
+</script>
+
+</body></html>
